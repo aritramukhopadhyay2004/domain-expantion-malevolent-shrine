@@ -139,11 +139,7 @@ A score of **≥ 2** begins charging. Holding at max charge (**55 frames**) trig
 
 ---
 
-## 📸 Screenshots
 
-> *Add screenshots or a GIF/video of the project in action here.*
-
----
 
 ## 🎯 Inspiration
 
