@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Malevolent Shrine — Domain Expansion</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Noto+Sans+JP:wght@300;700&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; overflow:hidden; width:100vw; height:100vh; font-family:'Cinzel Decorative',serif; }
+#app { position:relative; width:100vw; height:100vh; }
+
+/* Webcam feed */
+#vid {
+  position:absolute; top:0; left:0;
+  width:100%; height:100%;
+  object-fit:cover; transform:scaleX(-1);
+  z-index:1;
+}
+
+/* Domain expansion video (hidden until activated) */
+#domain-vid {
+  position:absolute; top:0; left:0;
+  width:100%; height:100%;
+  object-fit:cover;
+  z-index:2; opacity:0;
+  transition: opacity 0.8s ease;
+  pointer-events:none;
+}
+#domain-vid.active { opacity:1; }
+
+/* Canvases for effects and hand overlay */
+canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
+#c-fx    { z-index:3; pointer-events:none; }
+#c-hands { z-index:4; pointer-events:none; }
+
+/* Flash overlay for dramatic activation */
+#flash {
+  position:absolute; inset:0; z-index:5;
+  background:#fff; opacity:0;
+  pointer-events:none;
+  transition: opacity 0.15s ease;
+}
+#flash.bang { opacity:0.85; }
+
+/* Shockwave ring */
+#shockwave {
+  position:absolute; z-index:5;
+  border: 3px solid rgba(255,60,60,0.9);
+  border-radius:50%;
+  pointer-events:none;
+  opacity:0;
+  box-shadow: 0 0 30px rgba(255,0,0,0.6), inset 0 0 30px rgba(255,0,0,0.3);
+}
+
+/* Screen shake */
+#app.shake { animation: shakeAnim 0.5s ease; }
+@keyframes shakeAnim {
+  0%,100% { transform:translate(0,0) rotate(0); }
+  10% { transform:translate(-8px,4px) rotate(-0.5deg); }
+  20% { transform:translate(6px,-6px) rotate(0.5deg); }
+  30% { transform:translate(-4px,6px) rotate(-0.3deg); }
+  40% { transform:translate(8px,-3px) rotate(0.4deg); }
+  50% { transform:translate(-6px,2px) rotate(-0.2deg); }
+  60% { transform:translate(3px,-5px) rotate(0.3deg); }
+  70% { transform:translate(-3px,4px) rotate(-0.1deg); }
+  80% { transform:translate(5px,-2px) rotate(0.2deg); }
+  90% { transform:translate(-2px,3px) rotate(-0.1deg); }
+}
+
+/* UI */
+#hud { position:absolute; inset:0; z-index:10; pointer-events:none; }
+#title { position:absolute; top:18px; left:50%; transform:translateX(-50%); text-align:center; }
+#title-main { font-size:clamp(13px,2vw,20px); color:#C9A84C; letter-spacing:.25em; text-shadow:0 0 20px rgba(201,168,76,.7); }
+#title-sub { font-family:'Noto Sans JP',sans-serif; font-size:11px; color:rgba(201,168,76,.4); letter-spacing:.35em; margin-top:4px; }
+
+#status { position:absolute; bottom:22px; left:50%; transform:translateX(-50%); text-align:center; }
+#status-txt { font-family:'Noto Sans JP',sans-serif; font-size:clamp(11px,1.4vw,15px); color:rgba(255,255,255,.55); letter-spacing:.12em; transition:color .4s; }
+#status-txt.on { color:#FF4444; animation:blink .5s ease infinite alternate; }
+@keyframes blink { from{text-shadow:0 0 8px #C41E1E} to{text-shadow:0 0 28px #FF0000,0 0 60px #8B0000} }
+
+#charge-wrap { width:200px; height:4px; background:rgba(255,255,255,.1); border-radius:2px; margin:8px auto 0; overflow:hidden; }
+#charge { height:100%; width:0%; background:linear-gradient(90deg,#8B0000,#FF3333); border-radius:2px; transition:width 0.1s; }
+
+#domain-name { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none; z-index:15; opacity:0; transition:opacity .7s; }
+#domain-name.show { opacity:1; }
+#dn-label { font-family:'Noto Sans JP',sans-serif; font-size:clamp(10px,1.3vw,13px); color:rgba(255,200,100,.75); letter-spacing:.6em; text-transform:uppercase; margin-bottom:8px; }
+#dn-main { font-size:clamp(24px,5.5vw,52px); color:#fff; text-shadow:0 0 20px #C41E1E,0 0 60px #8B0000; letter-spacing:.06em; line-height:1.1; }
+#dn-jp { font-family:'Noto Sans JP',sans-serif; font-weight:300; font-size:clamp(12px,2vw,20px); color:rgba(201,168,76,.7); letter-spacing:.3em; margin-top:6px; }
+
+/* Floating kanji */
+.kanji-float {
+  position:absolute; z-index:6;
+  font-family:'Noto Sans JP',sans-serif;
+  color:rgba(255,60,60,0.5);
+  font-size:28px; pointer-events:none;
+  animation: kanjiRise 4s ease-out forwards;
+  text-shadow: 0 0 15px rgba(255,0,0,0.5);
+}
+@keyframes kanjiRise {
+  0% { opacity:0; transform:translateY(0) scale(0.5); }
+  20% { opacity:0.7; }
+  100% { opacity:0; transform:translateY(-200px) scale(1.2); }
+}
+
+/* Corners */
+.corner { position:absolute; width:36px; height:36px; z-index:9; pointer-events:none; }
+#c1 { top:14px; left:14px; border-top:1px solid rgba(201,168,76,.4); border-left:1px solid rgba(201,168,76,.4); }
+#c2 { top:14px; right:14px; border-top:1px solid rgba(201,168,76,.4); border-right:1px solid rgba(201,168,76,.4); }
+#c3 { bottom:14px; left:14px; border-bottom:1px solid rgba(201,168,76,.4); border-left:1px solid rgba(201,168,76,.4); }
+#c4 { bottom:14px; right:14px; border-bottom:1px solid rgba(201,168,76,.4); border-right:1px solid rgba(201,168,76,.4); }
+
+/* Debug bar — stylish horizontal bottom strip */
+#debug {
+  position:absolute; bottom:0; left:0; width:100%; z-index:20;
+  background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(10,0,0,0.85) 30%, rgba(15,2,2,0.92) 100%);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  border-top:1px solid rgba(201,168,76,0.15);
+  padding:8px 16px 10px;
+  display:flex; align-items:center; justify-content:center; gap:0;
+  font-family:'Noto Sans JP',monospace; font-size:11px;
+  transition:opacity 0.4s, transform 0.4s;
+}
+#debug.hidden { opacity:0; pointer-events:none; transform:translateY(100%); }
+#debug .dbg-cell {
+  display:flex; flex-direction:column; align-items:center;
+  padding:2px 14px;
+  border-right:1px solid rgba(201,168,76,0.12);
+  min-width:70px;
+}
+#debug .dbg-cell:last-child { border-right:none; }
+#debug .dbg-label {
+  font-size:9px; letter-spacing:0.12em; text-transform:uppercase;
+  color:rgba(201,168,76,0.5); margin-bottom:2px;
+}
+#debug .dbg-val {
+  font-family:'Courier New',monospace; font-size:13px; font-weight:700;
+  color:#0f0; text-shadow:0 0 6px rgba(0,255,0,0.3);
+}
+#debug .dbg-val.hot { color:#FF4444; text-shadow:0 0 8px rgba(255,0,0,0.5); }
+#debug .dbg-tag {
+  font-size:9px; color:rgba(255,255,255,0.25); letter-spacing:0.15em;
+  padding:2px 12px; align-self:center;
+}
+
+/* Vignette */
+#vignette { position:absolute; inset:0; z-index:7; pointer-events:none;
+  background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,.5) 70%, rgba(0,0,0,.85) 100%);
+  opacity:0; transition:opacity 0.8s;
+}
+#vignette.active { opacity:1; }
+
+/* Permission screen */
+#perm {
+  position:absolute; inset:0; z-index:100;
+  background:#000;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px;
+}
+#perm h1 { font-size:clamp(18px,3vw,30px); color:#C9A84C; text-shadow:0 0 30px rgba(201,168,76,.5); text-align:center; padding:0 20px; }
+#perm p { font-family:'Noto Sans JP',sans-serif; font-size:14px; line-height:1.9; color:rgba(255,255,255,.5); text-align:center; max-width:380px; padding:0 20px; }
+#perm button { font-family:'Cinzel Decorative',serif; font-size:13px; letter-spacing:.2em; color:#C9A84C; background:transparent; border:1px solid #C9A84C; padding:13px 38px; cursor:pointer; transition:all .3s; }
+#perm button:hover { background:rgba(201,168,76,.1); box-shadow:0 0 18px rgba(201,168,76,.3); }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Webcam -->
+  <video id="vid" autoplay muted playsinline></video>
+
+  <!-- Domain expansion video background -->
+  <video id="domain-vid" muted loop playsinline preload="auto">
+    <source src="domain-expansion.mp4" type="video/mp4">
+  </video>
+
+  <!-- Effect + hand canvases -->
+  <canvas id="c-fx"></canvas>
+  <canvas id="c-hands"></canvas>
+
+  <!-- Flash + shockwave -->
+  <div id="flash"></div>
+  <div id="shockwave"></div>
+  <div id="vignette"></div>
+
+  <!-- Corners -->
+  <div class="corner" id="c1"></div>
+  <div class="corner" id="c2"></div>
+  <div class="corner" id="c3"></div>
+  <div class="corner" id="c4"></div>
+
+  <!-- Domain name display -->
+  <div id="domain-name">
+    <div id="dn-label">Domain Expansion</div>
+    <div id="dn-main">Malevolent Shrine</div>
+    <div id="dn-jp">伏魔御廚子</div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="title">
+      <div id="title-main">Malevolent Shrine</div>
+      <div id="title-sub">呪術廻戦 — Domain Expansion</div>
+    </div>
+    <div id="status">
+      <div id="status-txt">Awaiting Cursed Energy...</div>
+      <div id="charge-wrap"><div id="charge"></div></div>
+    </div>
+  </div>
+
+  <!-- Debug bar -->
+  <div id="debug">
+    <span class="dbg-tag">DEBUG ⬡ D=toggle SPACE=force</span>
+    <div class="dbg-cell"><span class="dbg-label">Hands</span><span class="dbg-val" id="d-h">0</span></div>
+    <div class="dbg-cell"><span class="dbg-label">Wrist Δ</span><span class="dbg-val" id="d-w">—</span></div>
+    <div class="dbg-cell"><span class="dbg-label">Tip Δ</span><span class="dbg-val" id="d-t">—</span></div>
+    <div class="dbg-cell"><span class="dbg-label">Fingers</span><span class="dbg-val" id="d-f">—</span></div>
+    <div class="dbg-cell"><span class="dbg-label">Score</span><span class="dbg-val" id="d-s">0<small style="color:rgba(255,255,255,.3)">/4</small></span></div>
+    <div class="dbg-cell"><span class="dbg-label">Hold</span><span class="dbg-val" id="d-hf">0</span></div>
+    <div class="dbg-cell"><span class="dbg-label">Domain</span><span class="dbg-val" id="d-d">OFF</span></div>
+    <div class="dbg-cell"><span class="dbg-label">Video</span><span class="dbg-val" id="d-v">paused</span></div>
+  </div>
+
+  <!-- Permission screen -->
+  <div id="perm">
+    <svg width="70" height="70" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="44" stroke="#C9A84C" stroke-width="1.5"/>
+      <path d="M20 50 Q35 35 50 50 Q65 35 80 50 Q65 65 50 50 Q35 65 20 50Z" stroke="#C9A84C" stroke-width="1.5"/>
+      <circle cx="50" cy="50" r="8" fill="#8B0000"/>
+      <circle cx="50" cy="50" r="3" fill="#C9A84C"/>
+      <line x1="50" y1="6" x2="50" y2="19" stroke="#C9A84C" stroke-width="1"/>
+      <line x1="50" y1="81" x2="50" y2="94" stroke="#C9A84C" stroke-width="1"/>
+      <line x1="6"  y1="50" x2="19" y2="50" stroke="#C9A84C" stroke-width="1"/>
+      <line x1="81" y1="50" x2="94" y2="50" stroke="#C9A84C" stroke-width="1"/>
+    </svg>
+    <h1>Domain Expansion<br>Detector</h1>
+    <p>Press your palms together in a <strong style="color:#C9A84C">Namaskaram</strong> gesture (prayer hands, fingers pointing up) and hold for ~2 seconds.<br><br>Camera access required.</p>
+    <button onclick="startCamera()">Open Domain</button>
+  </div>
+</div>
+
+<!-- MediaPipe CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+<script>
+// ── Elements
+const vid      = document.getElementById('vid');
+const domVid   = document.getElementById('domain-vid');
+const cFx      = document.getElementById('c-fx');
+const cHand    = document.getElementById('c-hands');
+const ctxF     = cFx.getContext('2d');
+const ctxH     = cHand.getContext('2d');
+const sTxt     = document.getElementById('status-txt');
+const chBar    = document.getElementById('charge');
+const dnEl     = document.getElementById('domain-name');
+const dbg      = document.getElementById('debug');
+const flashEl  = document.getElementById('flash');
+const shockEl  = document.getElementById('shockwave');
+const vigEl    = document.getElementById('vignette');
+const appEl    = document.getElementById('app');
+
+// ── State
+let W=0, H=0, lms=[], holdF=0, domActive=false, domI=0, tick=0;
+let slashes=[], forceOn=false, releaseT=0;
+let wasActive = false; // track activation edge
+const HOLD_MAX=55, RELEASE_MAX=80;
+const KANJI_CHARS = ['呪','斬','術','魔','廚','伏','御','子','閻','魔','天'];
+
+function resize() {
+  W=innerWidth; H=innerHeight;
+  cFx.width=cHand.width=W;
+  cFx.height=cHand.height=H;
+}
+addEventListener('resize',resize); resize();
+
+addEventListener('keydown',e=>{
+  if(e.key==='d'||e.key==='D') dbg.classList.toggle('hidden');
+  if(e.key===' '){
+    forceOn=!forceOn;
+    if(forceOn){domActive=true;holdF=HOLD_MAX;}
+    else{domActive=false;holdF=0;}
+  }
+});
+
+// ── Camera + MediaPipe
+async function startCamera(){
+  document.getElementById('perm').style.display='none';
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}}
+    });
+    vid.srcObject=stream; await vid.play();
+  }catch(e){alert('Camera error: '+e.message);return;}
+
+  const hands=new Hands({
+    locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${f}`
+  });
+  hands.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:0.5,minTrackingConfidence:0.4});
+  hands.onResults(r=>{lms=r.multiHandLandmarks||[];});
+
+  const cam=new Camera(vid,{
+    onFrame:async()=>{try{await hands.send({image:vid});}catch(_){}},
+    width:1280,height:720
+  });
+  cam.start();
+  requestAnimationFrame(loop);
+}
+
+// ── Gesture detection (Namaskaram)
+function d2(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+
+function getScore(){
+  if(lms.length<2){setDbg(lms.length,'—','—','—',0);return 0;}
+  const h1=lms[0],h2=lms[1]; let s=0;
+  const wd=d2(h1[0],h2[0]); if(wd<0.35)s++;
+  const tips=[8,12,16,20], mcps=[5,9,13,17];
+  const td=tips.reduce((a,i)=>a+d2(h1[i],h2[i]),0)/4; if(td<0.32)s++;
+  const e1=tips.filter((t,i)=>h1[t].y<h1[mcps[i]].y-0.02).length;
+  const e2=tips.filter((t,i)=>h2[t].y<h2[mcps[i]].y-0.02).length;
+  if(e1>=2&&e2>=2)s++;
+  if(Math.abs(h1[0].y-h2[0].y)<0.28)s++;
+  setDbg(lms.length,wd.toFixed(3),td.toFixed(3),`${e1}/${e2}`,s);
+  return s;
+}
+
+function setDbg(h,w,t,f,s){
+  document.getElementById('d-h').textContent=h;
+  document.getElementById('d-w').textContent=w;
+  document.getElementById('d-t').textContent=t;
+  document.getElementById('d-f').textContent=f;
+  document.getElementById('d-s').textContent=s;
+}
+
+// ── Dramatic activation effects
+function triggerActivation(){
+  // Flash
+  flashEl.classList.add('bang');
+  setTimeout(()=>flashEl.classList.remove('bang'),150);
+
+  // Screen shake
+  appEl.classList.add('shake');
+  setTimeout(()=>appEl.classList.remove('shake'),500);
+
+  // Shockwave from center
+  const size=Math.max(W,H)*2;
+  shockEl.style.left=(W/2)+'px';
+  shockEl.style.top=(H/2)+'px';
+  shockEl.style.width='0px'; shockEl.style.height='0px';
+  shockEl.style.transform='translate(-50%,-50%)';
+  shockEl.style.opacity='1';
+  shockEl.style.transition='none';
+  requestAnimationFrame(()=>{
+    shockEl.style.transition='all 0.8s ease-out';
+    shockEl.style.width=size+'px'; shockEl.style.height=size+'px';
+    shockEl.style.opacity='0';
+    shockEl.style.borderWidth='1px';
+  });
+
+  // Play domain video
+  domVid.currentTime=0;
+  domVid.play().catch(()=>{});
+  domVid.classList.add('active');
+
+  // Vignette
+  vigEl.classList.add('active');
+
+  // Spawn floating kanji
+  for(let i=0;i<8;i++){
+    setTimeout(()=>spawnKanji(), i*200);
+  }
+}
+
+function triggerDeactivation(){
+  domVid.classList.remove('active');
+  vigEl.classList.remove('active');
+  setTimeout(()=>{domVid.pause();},800);
+}
+
+function spawnKanji(){
+  const el=document.createElement('div');
+  el.className='kanji-float';
+  el.textContent=KANJI_CHARS[Math.floor(Math.random()*KANJI_CHARS.length)];
+  el.style.left=(Math.random()*80+10)+'%';
+  el.style.top=(Math.random()*60+20)+'%';
+  el.style.fontSize=(20+Math.random()*30)+'px';
+  appEl.appendChild(el);
+  setTimeout(()=>el.remove(),4000);
+}
+
+// ── Slash effects on canvas
+function addSlash(){
+  const x1=Math.random()*W,y1=Math.random()*H;
+  const a=(Math.random()-.5)*1.2+.5,l=100+Math.random()*250;
+  slashes.push({x1,y1,x2:x1+Math.cos(a)*l,y2:y1+Math.sin(a)*l,life:1,decay:.04+Math.random()*.08,w:.5+Math.random()*2.5});
+}
+
+function drawFx(I){
+  ctxF.clearRect(0,0,W,H);
+  if(I<0.01)return;
+
+  // Cursed energy overlay tint
+  ctxF.save();
+  ctxF.globalAlpha=I*0.15;
+  ctxF.fillStyle='rgba(139,0,0,1)';
+  ctxF.fillRect(0,0,W,H);
+  ctxF.restore();
+
+  // Slashes
+  ctxF.save();
+  slashes=slashes.filter(s=>s.life>0);
+  slashes.forEach(s=>{
+    ctxF.globalAlpha=s.life*I;
+    ctxF.beginPath();ctxF.moveTo(s.x1,s.y1);ctxF.lineTo(s.x2,s.y2);
+    ctxF.strokeStyle=`rgba(255,${60+s.life*140},${50+s.life*80},${s.life})`;
+    ctxF.lineWidth=s.w;
+    ctxF.shadowColor='#FF0000';ctxF.shadowBlur=10*s.life;
+    ctxF.stroke();
+    s.life-=s.decay;
+  });
+  ctxF.restore();
+
+  // Scan lines when active
+  if(I>0.5){
+    ctxF.save();
+    ctxF.globalAlpha=I*0.06;
+    for(let y=0;y<H;y+=3){
+      if(Math.sin(y*0.3+tick*0.15)>0.7){
+        ctxF.fillStyle='rgba(255,50,50,1)';
+        ctxF.fillRect(0,y,W,1);
+      }
+    }
+    ctxF.restore();
+  }
+}
+
+// ── Hand skeleton
+const CONNS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+function drawHands(I){
+  ctxH.clearRect(0,0,W,H);
+  if(!lms.length)return;
+  const vw=vid.videoWidth||W,vh=vid.videoHeight||H;
+  const sc=Math.max(W/vw,H/vh);
+  const dw=vw*sc,dh=vh*sc,ox=(W-dw)/2,oy=(H-dh)/2;
+  const px=lm=>W-(lm.x*dw+ox);
+  const py=lm=>lm.y*dh+oy;
+  const active=I>0.25;
+  const col=active?'rgba(255,70,70,.9)':'rgba(201,168,76,.75)';
+  lms.forEach(hand=>{
+    ctxH.strokeStyle=col;ctxH.lineWidth=active?2+I*2.5:1.5;
+    ctxH.shadowColor=active?'#C41E1E':'#C9A84C';
+    ctxH.shadowBlur=active?10*I:4;
+    CONNS.forEach(([a,b])=>{
+      ctxH.beginPath();ctxH.moveTo(px(hand[a]),py(hand[a]));
+      ctxH.lineTo(px(hand[b]),py(hand[b]));ctxH.stroke();
+    });
+    [4,8,12,16,20].forEach(i=>{
+      ctxH.beginPath();ctxH.arc(px(hand[i]),py(hand[i]),active?5:3.5,0,Math.PI*2);
+      ctxH.fillStyle=active?'#FF4444':'#FFD700';ctxH.shadowBlur=active?14*I:5;ctxH.fill();
+    });
+  });
+  ctxH.shadowBlur=0;
+}
+
+// ── HUD
+function updateHUD(score){
+  const pct=Math.round((holdF/HOLD_MAX)*100);
+  chBar.style.width=Math.min(pct,100)+'%';
+  document.getElementById('d-hf').textContent=holdF;
+  const dd=document.getElementById('d-d'); dd.textContent=domActive?'ON':'OFF'; dd.classList.toggle('hot',domActive);
+  const dv=document.getElementById('d-v'); dv.textContent=domVid.paused?'—':'▶'; dv.classList.toggle('hot',!domVid.paused);
+
+  if(domActive){
+    sTxt.textContent='✦ MALEVOLENT SHRINE ACTIVE ✦';sTxt.className='on';dnEl.classList.add('show');
+  }else if(holdF>0&&score>=2){
+    sTxt.textContent=`Channeling... ${Math.min(pct,100)}%`;sTxt.className='on';dnEl.classList.remove('show');
+  }else if(score>=2){
+    sTxt.textContent='Namaskaram Detected — Hold...';sTxt.className='';dnEl.classList.remove('show');
+  }else if(lms.length>=1){
+    sTxt.textContent='Press both palms together, fingers up...';sTxt.className='';dnEl.classList.remove('show');
+  }else{
+    sTxt.textContent='Awaiting Cursed Energy...';sTxt.className='';dnEl.classList.remove('show');
+  }
+}
+
+// ── Spawn kanji periodically when domain active
+let kanjiTimer=0;
+
+// ── Main loop
+function loop(){
+  requestAnimationFrame(loop);
+  tick++;
+
+  const score=forceOn?4:getScore();
+
+  if(score>=2){
+    holdF++;releaseT=0;
+    if(holdF>=HOLD_MAX)domActive=true;
+  }else{
+    if(domActive){
+      releaseT++;
+      if(releaseT>RELEASE_MAX){domActive=false;holdF=0;releaseT=0;}
+    }else{
+      holdF=Math.max(0,holdF-2);
+    }
+  }
+
+  // Detect activation/deactivation edges
+  if(domActive&&!wasActive) triggerActivation();
+  if(!domActive&&wasActive) triggerDeactivation();
+  wasActive=domActive;
+
+  // Intensity ramp
+  const target=domActive?1:Math.min(holdF/HOLD_MAX*.5,.5);
+  domI+=(target-domI)*.06;
+
+  // Spawn effects
+  if(domActive){
+    if(tick%4===0) addSlash();
+    kanjiTimer++;
+    if(kanjiTimer%60===0) spawnKanji();
+  }else if(domI>0.05){
+    if(tick%12===0) addSlash();
+  }
+
+  drawFx(domI);
+  drawHands(domI);
+  updateHUD(score);
+}
+</script>
+</body>
+</html>

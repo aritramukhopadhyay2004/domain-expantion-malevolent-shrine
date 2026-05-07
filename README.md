@@ -65,8 +65,8 @@ When the gesture is held long enough, the full activation sequence triggers:
 ### Quick Start
 ```bash
 # Clone the repository
-git clone https://github.com/<your-username>/malevolent-shrine.git
-cd malevolent-shrine
+git clone https://github.com/aritramukhopadhyay2004/domain-expantion-malevolent-shrine.git
+cd domain-expantion-malevolent-shrine
 
 # Open in browser (any of these work)
 # Option 1: Direct file open
